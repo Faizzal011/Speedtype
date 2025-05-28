@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="typingApp">
+<head>
+  <meta charset="UTF-8">
+  <title>Speedtype - Typing Speed Test</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+  <style>
+    body {
+      background-color: #1a1a1a;
+      color: #f5f5f5;
+      font-family: 'Fira Code', monospace;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      margin: 0;
+    }
+
+    header, footer {
+      background-color: #2e2e2e;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .logo {
+      background-color: #00aaff;
+      color: #fff;
+      font-weight: bold;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    footer {
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+
+    main.container {
+      flex: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    select {
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      background-color: #2e2e2e;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .prompt {
+      font-size: 1.5rem;
+      line-height: 2rem;
+      margin-bottom: 2rem;
+      word-wrap: break-word;
+    }
+
+    .typed-correct {
+      color: #00ffab;
+    }
+
+    .typed-wrong {
+      color: #ff4d4d;
+    }
+
+    .input-box {
+      width: 100%;
+      padding: 1rem;
+      font-size: 1.2rem;
+      background-color: #2e2e2e;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    .stats {
+      margin-top: 1.5rem;
+      font-size: 1.2rem;
+      opacity: 0;
+      transition: opacity 0.6s ease-in-out;
+    }
+
+    .stats.show {
+      opacity: 1;
+    }
+
+    .restart-btn {
+      margin-top: 1.5rem;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      background-color: #00aaff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #fff;
+      transition: background-color 0.3s ease;
+    }
+
+    .restart-btn:hover {
+      background-color: #008ecc;
+    }
+
+    .timer {
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      color: #ccc;
+    }
+
+    .pun-message {
+      margin-top: 1rem;
+      font-size: 1.1rem;
+      color: #ffd700;
+    }
+
+    .best-score {
+      margin-top: 1rem;
+      color: #80ffaa;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body ng-controller="TypingController">
+  <header>
+    <h1><span class="logo">S</span> Speedtype</h1>
+  </header>
+
+  <main class="container">
+    <select ng-model="selectedLevel" ng-change="restart()">
+      <option value="easy">Easy</option>
+      <option value="medium">Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+
+    <div class="timer">Time: {{ time }}s</div>
+    <div class="prompt">
+      <span ng-repeat="char in prompt track by $index"
+            ng-class="{
+              'typed-correct': $index < userInput.length && userInput[$index] === char,
+              'typed-wrong': $index < userInput.length && userInput[$index] !== char
+            }">{{ char }}</span>
+    </div>
+
+    <input type="text" class="input-box" ng-model="userInput" ng-change="checkTyping()" ng-disabled="finished" ng-focus="startTimer()">
+
+    <div class="stats" ng-class="{'show': finished}">
+      <p>WPM: {{ wpm }}</p>
+      <p>Accuracy: {{ accuracy }}%</p>
+      <p class="pun-message">{{ pun }}</p>
+      <p class="best-score">Best WPM: {{ bestScore }}</p>
+    </div>
+
+    <button class="restart-btn" ng-click="restart()">Restart</button>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Speedtype. All rights reserved.</p>
+  </footer>
+
+  <script>
+    angular.module('typingApp', []).controller('TypingController', function($scope, $interval) {
+      const easySentences = [
+  "the cat sat on the mat",
+  "practice typing every day",
+  "this is a simple sentence",
+  "make sure to use both hands",
+  "always focus while typing"
+];
+
+const mediumSentences = [
+  "QuickZeal botsJump Nowhere",
+  "FunkyLizardSingsToNightOwls",
+  "Jump Over the Lazy DOG Quickly",
+  "WittyBanana Drifts ThroughTime",
+  "CodeWithPride And Passion Always"
+];
+
+const hardSentences = [
+  "T!p3{hard};with@odd*chars#now!",
+  "Try:typing&this*with^confidence?",
+  "M@ke_it>tricky<with$random{stuff}",
+  "H@rd{typing};is:a\"challenge\"",
+  "[Symbols]~make#typing>more<fun!"
+];
+
+
+      const puns = [
+        "Too slow, even my grandma types faster!",
+        "You type faster than a caffeinated squirrel!",
+        "Like lightning! Or maybe like a turtle...",
+        "Keyboard ninja in the making!",
+        "Faster than a bunny with a deadline!"
+      ];
+
+      $scope.selectedLevel = 'easy';
+
+      function getRandomSentence(level) {
+        if (level === 'medium') return mediumSentences[Math.floor(Math.random() * mediumSentences.length)];
+        if (level === 'hard') return hardSentences[Math.floor(Math.random() * hardSentences.length)];
+        return easySentences[Math.floor(Math.random() * easySentences.length)];
+      }
+
+      function getRandomPun() {
+        return puns[Math.floor(Math.random() * puns.length)];
+      }
+
+      function initTest() {
+        $scope.originalText = getRandomSentence($scope.selectedLevel);
+        $scope.prompt = $scope.originalText.split("");
+        $scope.userInput = "";
+        $scope.started = false;
+        $scope.finished = false;
+        $scope.time = 0;
+        $scope.wpm = 0;
+        $scope.accuracy = 0;
+        $scope.pun = "";
+        $scope.bestScore = localStorage.getItem("bestWPM") || 0;
+        $interval.cancel($scope.timer);
+      }
+
+      $scope.startTimer = function() {
+        if (!$scope.started) {
+          $scope.started = true;
+          $scope.timer = $interval(() => {
+            $scope.time++;
+          }, 1000);
+        }
+      };
+
+      $scope.checkTyping = function() {
+  // Stop the timer when user input reaches the length of the original text
+  if ($scope.userInput.length === $scope.originalText.length && !$scope.finished) {
+    $interval.cancel($scope.timer);
+    $scope.finished = true;
+    calculateStats();
+    $scope.pun = getRandomPun();
+    if ($scope.wpm > $scope.bestScore) {
+      $scope.bestScore = $scope.wpm;
+      localStorage.setItem("bestWPM", $scope.wpm);
+    }
+  }
+};
+
+
+      function calculateStats() {
+        const words = $scope.originalText.trim().split(/\s+/).length;
+        const minutes = $scope.time / 60;
+        $scope.wpm = Math.round(words / minutes || 0);
+
+        let correctChars = 0;
+        for (let i = 0; i < $scope.userInput.length; i++) {
+          if ($scope.userInput[i] === $scope.originalText[i]) correctChars++;
+        }
+        $scope.accuracy = Math.round((correctChars / $scope.originalText.length) * 100);
+      }
+
+      $scope.restart = function() {
+        initTest();
+      };
+
+      initTest();
+    });
+  </script>
+</body>
+</html>
